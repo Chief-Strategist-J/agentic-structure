@@ -1,5 +1,0 @@
-budgets:
-  p95LatencyMs: 200
-  p99LatencyMs: 500
-  maxErrorRate: 0.001
-  maxCpuUtilizationPct: 80
