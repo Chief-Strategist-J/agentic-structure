@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # TS-ASSERT-001 — no `as T` type assertions on external/unknown data. Exit 0 = pass.
-# Allows: 'as const' (safe), files matching *.schema.ts or in generated/ dirs.
 set -euo pipefail
-hits=$(grep -RnE '\bas\s+[A-Za-z_][A-Za-z0-9_<>\[\]|&{}]*' --include='*.ts' --include='*.tsx' \
+hits=$(grep -RnE '(^|[[:space:]])as[[:space:]]+[A-Za-z_][A-Za-z0-9_<>|\&{}\[\]]*' --include='*.ts' --include='*.tsx' \
   --exclude-dir=node_modules --exclude-dir=generated . 2>/dev/null \
-  | grep -vE '\bas\s+const\b' \
+  | grep -vE '[[:space:]]as[[:space:]]+const\b' \
   | grep -vE '\.schema\.ts:' \
   | grep -vE 'schema\.ts:' \
   | grep -vE '// justified:' \

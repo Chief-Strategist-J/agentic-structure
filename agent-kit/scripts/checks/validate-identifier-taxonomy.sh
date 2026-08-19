@@ -8,10 +8,19 @@
 set -euo pipefail
 fail=0
 
-# Check for identifier aliasing anti-pattern (e.g. idempotencyKey = requestId, traceId = requestId)
-alias_hits=$(grep -RnE '(\bidempotency_?key\s*[:=]\s*(req(uest)?_?id|x_request_id)|\btrace_?id\s*[:=]\s*(req(uest)?_?id|x_request_id))' \
-  --include='*.go' --include='*.kt' --include='*.ts' --include='*.tsx' \
-  --exclude-dir=node_modules --exclude-dir=.git . 2>/dev/null || true)
+alias_hits=""
+while IFS= read -r -d '' f; do
+  hit=$(perl -ne '
+    if (/(idempotency_?key\s*[:=]+\s*(req(uest)?_?id|x_request_id)|trace_?id\s*[:=]+\s*(req(uest)?_?id|x_request_id))/i) {
+      print "$ARGV:$.: $_";
+    }
+  ' "$f" 2>/dev/null || true)
+  if [ -n "$hit" ]; then
+    alias_hits+="$hit"
+  fi
+done < <(find . \( -name '*.go' -o -name '*.kt' -o -name '*.ts' -o -name '*.tsx' \) \
+  -not -path '*/node_modules/*' -not -path '*/.git/*' -print0 2>/dev/null)
+
 if [ -n "$alias_hits" ]; then
   echo "VIOLATION ID-TAXONOMY-001: identifier aliasing detected (mixing distinct taxonomy meanings):"
   echo "$alias_hits"
@@ -19,15 +28,21 @@ if [ -n "$alias_hits" ]; then
   fail=1
 fi
 
-# Check for downstream Trace-ID regeneration (creating new root trace inside internal handlers)
-regen_hits=$(grep -RnE '(tracer\.Start\([^)]*context\.Background\(\)|SpanFromContext\(nil\))' \
-  --include='*.go' . 2>/dev/null \
-  | grep -E 'features/' \
-  | grep -vE '(_test\.go)' || true)
+regen_hits=""
+while IFS= read -r -d '' f; do
+  hit=$(perl -ne '
+    if (/(tracer\.Start\([^)]*context\.Background\(\)|SpanFromContext\(nil\))/) {
+      print "$ARGV:$.: $_";
+    }
+  ' "$f" 2>/dev/null || true)
+  if [ -n "$hit" ]; then
+    regen_hits+="$hit"
+  fi
+done < <(find . -path '*/features/*' -name '*.go' -not -name '*_test.go' -print0 2>/dev/null)
+
 if [ -n "$regen_hits" ]; then
   echo "VIOLATION ID-TAXONOMY-001 [Go]: downstream Trace-ID regeneration detected in feature:"
   echo "$regen_hits"
-  echo "  → Propagate incoming context.Context with existing trace; do not create orphan root spans with context.Background()."
   fail=1
 fi
 
