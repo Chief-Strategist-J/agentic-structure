@@ -1,11 +1,6 @@
 /**
- * 3-Level Rules Engine Architecture with Complete Rule Metadata Attributes
- *
- * Identity:     id, version, name
- * Ownership:    owner, domain, rationale
- * Lifecycle:    active_from, active_to, enabled
- * Evaluation:   condition, computation, priority
- * Output:       output_key, output_type (score|flag|label|value|event), weight
+ * 3-Level Rules Engine Architecture with Full Metadata, Provenance, Change Tracking & Operational Attributes
+ * (TypeScript implementation for Next.js Web Application)
  */
 
 export type OutputType = 'score' | 'flag' | 'label' | 'value' | 'event';
@@ -21,7 +16,7 @@ export interface AtomicRule {
   // Ownership
   owner: string;
   domain: string;
-  rationale: string;
+  rationale: string; // Strong rationale why this rule exists
 
   // Lifecycle
   activeFrom?: string; // ISO timestamp
@@ -33,12 +28,30 @@ export interface AtomicRule {
   operator: Operator;
   value: unknown;
   priority: number;
+  weight: number;
+  conditionName?: string;
+  computationName?: string;
 
   // Output
   outputKey: string;
   outputType: OutputType;
-  weight: number;
   userFacingExplanation: string;
+
+  // Provenance
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+  source?: string;
+
+  // Change tracking
+  supersedes?: string;
+  changeReason?: string;
+
+  // Operational & Evaluation Metadata
+  tags: string[];
+  timeoutMs?: number;
+  deterministic: boolean;
 }
 
 export interface CompoundRule {
@@ -83,6 +96,7 @@ export interface RuleEvaluationAudit {
   firedCompoundRules: string[];
   userFacingReasons: string[];
   debugWaterfall: string[];
+  ruleRationales: Record<string, string>;
 }
 
 export class RulesEvaluator {
@@ -106,13 +120,16 @@ export class RulesEvaluator {
       firedCompoundRules: [],
       userFacingReasons: [],
       debugWaterfall: [],
+      ruleRationales: {},
     };
 
     let policyPassed = true;
 
     for (const rule of policy.atomicRules) {
+      audit.ruleRationales[rule.id] = rule.rationale;
+
       if (!rule.enabled) {
-        audit.debugWaterfall.push(`[Level 1 Atomic] Rule ${rule.id} skipped (disabled)`);
+        audit.debugWaterfall.push(`[Level 1 Atomic] Rule ${rule.id} (ver:${rule.version}) skipped (disabled)`);
         continue;
       }
       if (rule.activeFrom && now < new Date(rule.activeFrom)) {
@@ -126,7 +143,7 @@ export class RulesEvaluator {
 
       const passed = this.evaluateAtomic(rule, facts);
       audit.debugWaterfall.push(
-        `[Level 1 Atomic] Rule ${rule.id} (Priority: ${rule.priority}, Weight: ${rule.weight}, ${rule.field} ${rule.operator} ${JSON.stringify(rule.value)}): ${passed}`
+        `[Level 1 Atomic] Rule ${rule.id} (Priority: ${rule.priority}, Weight: ${rule.weight}, Deterministic: ${rule.deterministic}, ${rule.field} ${rule.operator} ${JSON.stringify(rule.value)}): ${passed} | Rationale: ${rule.rationale}`
       );
       if (passed) {
         audit.firedAtomicRules.push(rule.id);

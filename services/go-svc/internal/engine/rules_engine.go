@@ -37,7 +37,7 @@ const (
 	LogicalNot LogicalOperator = "NOT"
 )
 
-// Level 1 — Atomic Rule with Complete Metadata & Lifecycle
+// Level 1 — Atomic Rule with Full Provenance, Change Tracking, Operational & Evaluation Metadata
 type AtomicRule struct {
 	// Identity
 	ID      string `json:"id"`
@@ -47,7 +47,7 @@ type AtomicRule struct {
 	// Ownership
 	Owner     string `json:"owner"`
 	Domain    string `json:"domain"`
-	Rationale string `json:"rationale"`
+	Rationale string `json:"rationale"` // Strong rationale why this rule exists
 
 	// Lifecycle
 	ActiveFrom *time.Time `json:"active_from,omitempty"`
@@ -55,16 +55,34 @@ type AtomicRule struct {
 	Enabled    bool       `json:"enabled"`
 
 	// Evaluation
-	Field    string   `json:"field"`
-	Operator Operator `json:"operator"`
-	Value    any      `json:"value"`
-	Priority int      `json:"priority"`
+	Field         string   `json:"field"`
+	Operator      Operator `json:"operator"`
+	Value         any      `json:"value"`
+	Priority      int      `json:"priority"`
+	Weight        float64  `json:"weight"`
+	ConditionName string   `json:"condition_name,omitempty"`
+	CompName      string   `json:"computation_name,omitempty"`
 
 	// Output
 	OutputKey             string     `json:"output_key"`
 	OutputType            OutputType `json:"output_type"`
-	Weight                float64    `json:"weight"`
 	UserFacingExplanation string     `json:"user_facing_explanation"`
+
+	// Provenance
+	CreatedAt time.Time `json:"created_at"`
+	CreatedBy string    `json:"created_by"`
+	UpdatedAt time.Time `json:"updated_at"`
+	UpdatedBy string    `json:"updated_by"`
+	Source    string    `json:"source,omitempty"`
+
+	// Change Tracking
+	Supersedes   string `json:"supersedes,omitempty"`
+	ChangeReason string `json:"change_reason,omitempty"`
+
+	// Evaluation & Operational Metadata
+	Tags          []string `json:"tags,omitempty"`
+	TimeoutMs     int      `json:"timeout_ms,omitempty"`
+	Deterministic bool     `json:"deterministic"`
 }
 
 // Level 2 — Compound Rule
@@ -98,19 +116,21 @@ type Policy struct {
 	UserFacingExplanation string         `json:"user_facing_explanation"`
 }
 
+// Complete Audit Trail — Accountability, Debuggability, Rationale, Explanations
 type RuleEvaluationAudit struct {
-	EvaluationID       string         `json:"evaluation_id"`
-	PolicyID           string         `json:"policy_id"`
-	PolicyVersion      int            `json:"policy_version"`
-	TraceID            string         `json:"trace_id"`
-	TenantID           string         `json:"tenant_id"`
-	EvaluatedAt        time.Time      `json:"evaluated_at"`
-	Passed             bool           `json:"passed"`
-	Facts              map[string]any `json:"facts"`
-	FiredAtomicRules   []string       `json:"fired_atomic_rules"`
-	FiredCompoundRules []string       `json:"fired_compound_rules"`
-	UserFacingReasons  []string       `json:"user_facing_reasons"`
-	DebugWaterfall     []string       `json:"debug_waterfall"`
+	EvaluationID       string            `json:"evaluation_id"`
+	PolicyID           string            `json:"policy_id"`
+	PolicyVersion      int               `json:"policy_version"`
+	TraceID            string            `json:"trace_id"`
+	TenantID           string            `json:"tenant_id"`
+	EvaluatedAt        time.Time         `json:"evaluated_at"`
+	Passed             bool              `json:"passed"`
+	Facts              map[string]any    `json:"facts"`
+	FiredAtomicRules   []string          `json:"fired_atomic_rules"`
+	FiredCompoundRules []string          `json:"fired_compound_rules"`
+	UserFacingReasons  []string          `json:"user_facing_reasons"`
+	DebugWaterfall     []string          `json:"debug_waterfall"`
+	RuleRationales     map[string]string `json:"rule_rationales"`
 }
 
 type Evaluator struct{}
@@ -133,14 +153,16 @@ func (e *Evaluator) EvaluatePolicy(ctx context.Context, policy Policy, facts map
 		FiredCompoundRules: make([]string, 0),
 		UserFacingReasons:  make([]string, 0),
 		DebugWaterfall:     make([]string, 0),
+		RuleRationales:     make(map[string]string),
 	}
 
 	policyPassed := true
 
-	// Evaluate Atomic Rules
 	for _, rule := range policy.AtomicRules {
+		audit.RuleRationales[rule.ID] = rule.Rationale
+
 		if !rule.Enabled {
-			audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 1 Atomic] Rule %s skipped (disabled)", rule.ID))
+			audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 1 Atomic] Rule %s (ver:%d, owner:%s) skipped (disabled)", rule.ID, rule.Version, rule.Owner))
 			continue
 		}
 		if rule.ActiveFrom != nil && now.Before(*rule.ActiveFrom) {
@@ -153,7 +175,9 @@ func (e *Evaluator) EvaluatePolicy(ctx context.Context, policy Policy, facts map
 		}
 
 		passed := e.EvaluateAtomic(rule, facts)
-		audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 1 Atomic] Rule %s (Priority: %d, Weight: %.2f, %s %s %v): %v", rule.ID, rule.Priority, rule.Weight, rule.Field, rule.Operator, rule.Value, passed))
+		audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 1 Atomic] Rule %s (Priority: %d, Weight: %.2f, Deterministic: %v, %s %s %v): %v | Rationale: %s",
+			rule.ID, rule.Priority, rule.Weight, rule.Deterministic, rule.Field, rule.Operator, rule.Value, passed, rule.Rationale))
+
 		if passed {
 			audit.FiredAtomicRules = append(audit.FiredAtomicRules, rule.ID)
 		} else {
