@@ -29,38 +29,33 @@ for cmd in git bash python3; do
 done
 echo "✔ Prerequisites verified."
 
-# 2. Clone repository into target directory
+# 2. Clone or update target workspace
+tmp_dir=$(mktemp -d)
+echo "➜ Fetching latest platform contracts & rule assets..."
+git clone "$REPO_URL" "$tmp_dir" --quiet
+
 if [ -d "$INSTALL_DIR" ]; then
-  echo -e "➜ Target directory '$INSTALL_DIR' already exists."
+  echo -e "➜ Target directory '$INSTALL_DIR' already exists. Updating agent-kit & rules..."
+  mkdir -p "$INSTALL_DIR/agent-kit"
+  cp -r "$tmp_dir/agent-kit/"* "$INSTALL_DIR/agent-kit/"
+  cp -r "$tmp_dir/AGENTS.md" "$INSTALL_DIR/" 2>/dev/null || true
+  cp -r "$tmp_dir/CLAUDE.md" "$INSTALL_DIR/" 2>/dev/null || true
+  cp -r "$tmp_dir/GEMINI.md" "$INSTALL_DIR/" 2>/dev/null || true
   cd "$INSTALL_DIR"
-  if [ -d ".git" ]; then
-    echo "➜ Pulling latest main..."
-    git pull origin main --quiet || true
-  fi
 else
-  echo -e "➜ Cloning platform repository into '$INSTALL_DIR'..."
-  git clone "$REPO_URL" "$INSTALL_DIR" --quiet
+  echo -e "➜ Installing platform into '$INSTALL_DIR'..."
+  mv "$tmp_dir" "$INSTALL_DIR"
   cd "$INSTALL_DIR"
 fi
 
-# 3. Ensure agent-kit platform structure exists if installing into existing repo
-if [ ! -d "agent-kit" ]; then
-  echo "➜ Copying agent-kit infrastructure into target workspace..."
-  tmp_dir=$(mktemp -d)
-  git clone "$REPO_URL" "$tmp_dir" --quiet
-  cp -r "$tmp_dir/agent-kit" .
-  cp -r "$tmp_dir/AGENTS.md" . 2>/dev/null || true
-  cp -r "$tmp_dir/CLAUDE.md" . 2>/dev/null || true
-  cp -r "$tmp_dir/GEMINI.md" . 2>/dev/null || true
-  rm -rf "$tmp_dir"
-fi
+rm -rf "$tmp_dir" 2>/dev/null || true
 
-# 4. Install Git pre-commit hooks
+# 3. Install Git pre-commit hooks
 echo -e "➜ Installing 41-rule mechanical Git pre-commit gates..."
 bash agent-kit/scripts/install-git-hooks.sh >/dev/null 2>&1 || true
 echo "✔ Git hooks installed."
 
-# 5. Execute Rule Engine Verification
+# 4. Execute Rule Engine Verification
 echo -e "➜ Executing 41-rule manifest verification..."
 bash agent-kit/scripts/run-rules-manifest.sh
 
