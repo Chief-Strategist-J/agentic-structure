@@ -23,15 +23,22 @@ if [ -n "$go_dial" ]; then
 fi
 
 # TypeScript: fetch() without AbortSignal/timeout
-ts_hits=$(grep -RnE '\bfetch\(' --include='*.ts' --include='*.tsx' \
-  --exclude-dir=node_modules --exclude-dir=.git . 2>/dev/null \
-  | grep -iE '(lib/data|adapters?/|client\.ts|http)' \
-  | grep -vE '(signal|AbortSignal|timeout|AbortController|_test\.|test\.)' || true)
-if [ -n "$ts_hits" ]; then
-  echo "FINDING RESOURCE-TIMEOUT-001 [TypeScript]: fetch() call in data layer without AbortSignal/timeout:"
-  echo "$ts_hits"
-  fail=1
-fi
+while IFS= read -r -d '' f; do
+  unprotected_fetch=$(perl -0777 -ne '
+    while (/fetch\s*\([^;]*\)/gs) {
+      my $call = $&;
+      unless ($call =~ /(signal|AbortSignal|timeout|AbortController)/i) {
+        print "$ARGV: unprotected fetch call lacking signal/timeout\n";
+      }
+    }
+  ' "$f" 2>/dev/null || true)
+  if [ -n "$unprotected_fetch" ]; then
+    echo "FINDING RESOURCE-TIMEOUT-001 [TypeScript in $f]: fetch() without signal/timeout configuration:"
+    echo "$unprotected_fetch"
+    fail=1
+  fi
+done < <(find . \( -path '*/lib/data/*' -o -path '*/adapters/*' -o -path '*/http/*' \) \( -name '*.ts' -o -name '*.tsx' \) \
+  -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/__tests__/*' -print0 2>/dev/null)
 
 # Kotlin: HttpClient without timeout config
 kt_hits=$(grep -RnE '(HttpClient\(|OkHttpClient\(|OkHttpClient\.Builder)' --include='*.kt' . 2>/dev/null \
