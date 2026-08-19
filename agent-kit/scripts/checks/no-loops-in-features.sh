@@ -4,9 +4,10 @@ set -euo pipefail
 TARGET_DIRS='(features/|domain/|components/|\(features\)/)'
 
 hits=$( (grep -RnE '(^|[[:space:]])(for[[:space:]]|for\(|for[[:space:]]+await|while[[:space:]]*\(|do[[:space:]]*\{)' \
-  --include='*.go' --include='*.kt' --include='*.ts' --include='*.tsx' . 2>/dev/null || true) \
+  --include='*.go' --include='*.kt' --include='*.ts' --include='*.tsx' --include='*.py' --include='*.java' . 2>/dev/null || true) \
   | grep -E "$TARGET_DIRS" \
-  | grep -vE '(fp/|_test\.|_test_|\.test\.|Test\.kt:)' || true)
+  | grep -vE '(fp/|_test\.|_test_|\.test\.|Test\.kt:|Test\.java:|tests/)' || true)
+
 if [ -n "$hits" ]; then
   echo "VIOLATION LOOP-001: raw loop found in a feature/domain/UI file — use map/filter/fold/reduce/pipe:"
   echo "$hits"
