@@ -12,10 +12,17 @@ This file is read natively by Claude Code, Gemini CLI, Cursor, Codex, Copilot, W
 ## Absolute boundaries — violating any of these is not a judgment call
 
 - Never use Kotlin `!!`, TypeScript `any`, or an unchecked Go type assertion (`x.(T)` without the `, ok` form).
+- Never use `panic()` in Go `features/` or `domain/` — handle errors as values.
 - Never write a business conditional, a data transform, or a `fetch`/`axios` call inside a UI component file. UI components render already-decided props — nothing else.
+- Never write inline conditional logic inside `style={{...}}` — use style resolvers or variant systems.
+- Never import across vertical slice boundaries directly (`(features)/<a-feature>` importing from `(features)/<b-feature>`) — shared items belong in `platform/`, `components/ui/`, or `lib/`.
 - Never write a `for`/`while` loop inside `features/`, `domain/`, or component code. Use the transform methods catalogued in `agent-kit/docs/architecture.md` (`map`/`filter`/`fold`/`reduce`/`pipe` per language). A loop belongs only inside `platform/fp` itself or a low-level adapter.
+- Never violate vertical slice folder structure (no flat `controllers/`, `services/`, `models/` layered dirs).
 - Never write a destructive database migration (drop, rename, narrow a type) without a linked ADR justifying it, and never add a `NOT NULL` column without a default in the same migration.
+- Never write non-idempotent migrations — every `CREATE TABLE`, `ADD COLUMN`, and `CREATE INDEX` must have `IF NOT EXISTS` guards.
 - Never invent or copy a concrete example noun (Order, Pricing, User, etc.) into structural code, folder names, or interfaces unless that is genuinely this project's real domain — placeholders (`<Feature>`, `<Entity>`) stay placeholders until a human names the real thing.
+- Never name rule YAML files arbitrarily — follow `<feature>.<concern>.rules.yaml`.
+- Never use raw or string-indexed config/env reads (`config["key"]`, `os.Getenv`, `System.getenv`) in feature code — inject typed structs/models.
 - Never ship a mutating endpoint (POST/PUT/PATCH/DELETE) without requiring an `Idempotency-Key`, and never implement dedup/uniqueness only in application code — it must be enforced by a database constraint.
 - Never query or write data without an explicit tenant-scoping parameter. There is no such thing as an unscoped query in this system.
 - Never claim a rule is satisfied without actually running its check command and showing the real output. Do not say "this follows the rules" without evidence.

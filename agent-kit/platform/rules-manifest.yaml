@@ -35,6 +35,13 @@ rules:
     check: "scripts/checks/go-errcheck.sh"
     doc_ref: "#3-brutal-type-safety"
 
+  - id: GO-PANIC-001
+    lang: go
+    severity: blocking
+    statement: "No `panic()` in features/ or domain/ — only platform/middleware may recover."
+    check: "scripts/checks/no-panic-in-features-go.sh"
+    doc_ref: "#3-brutal-type-safety"
+
   - id: TS-ANY-001
     lang: typescript
     severity: blocking
@@ -47,6 +54,13 @@ rules:
     severity: blocking
     statement: "No `as T` type assertion on external/unknown data — use a zod `.parse()`/`.safeParse()` instead."
     check: "scripts/checks/no-unsafe-cast-typescript.sh"
+    doc_ref: "#3-brutal-type-safety"
+
+  - id: TS-STRICT-001
+    lang: typescript
+    severity: blocking
+    statement: "Every tsconfig.json must have strict: true, noUncheckedIndexedAccess: true, and exactOptionalPropertyTypes: true."
+    check: "scripts/checks/validate-tsconfig-strict.sh"
     doc_ref: "#3-brutal-type-safety"
 
   - id: LOOP-001
@@ -62,6 +76,20 @@ rules:
     statement: "No literal example nouns (Order, Pricing, User, etc.) copied from architecture docs/templates into structural code."
     check: "scripts/checks/validate-naming.sh"
     doc_ref: "#0-the-naming-law"
+
+  - id: NAMING-002
+    lang: any
+    severity: blocking
+    statement: "Rule YAML files must strictly follow the `<feature>.<concern>.rules.yaml` naming pattern."
+    check: "scripts/checks/validate-rule-file-naming.sh"
+    doc_ref: "#0-the-naming-law"
+
+  - id: STRUCTURE-001
+    lang: any
+    severity: blocking
+    statement: "Services must strictly follow vertical-slice folder structure (cmd/, internal/features/, domain/, ports/, adapters/) and reject layered anti-patterns (flat controllers/, services/, models/)."
+    check: "scripts/checks/validate-folder-structure.sh"
+    doc_ref: "#1-repo-level-topology"
 
   - id: UI-LOGIC-001
     lang: typescript
@@ -84,6 +112,27 @@ rules:
     check: "scripts/checks/no-inline-style-values.sh"
     doc_ref: "#11-frontend"
 
+  - id: UI-INLINE-STYLE-001
+    lang: typescript
+    severity: blocking
+    statement: "No inline conditional logic inside style={{...}} — styling logic belongs in dedicated style resolvers or variant systems."
+    check: "scripts/checks/no-inline-style-ternary.sh"
+    doc_ref: "#11-frontend"
+
+  - id: UI-CROSS-IMPORT-001
+    lang: typescript
+    severity: blocking
+    statement: "No cross-feature component imports — features must not import from sibling features (promote shared UI to components/ui/ or lib/)."
+    check: "scripts/checks/no-cross-feature-imports.sh"
+    doc_ref: "#11-frontend"
+
+  - id: UI-COMPONENT-SIZE-001
+    lang: typescript
+    severity: advisory
+    statement: "Flag .tsx component files over 100 lines — split into container vs presentational components."
+    check: "scripts/checks/check-component-size.sh"
+    doc_ref: "#11-frontend"
+
   - id: DB-MIGRATION-001
     lang: sql
     severity: blocking
@@ -96,6 +145,13 @@ rules:
     severity: blocking
     statement: "No destructive migration (DROP/RENAME COLUMN, narrowing a type) without an `-- ADR:` reference comment in the same file."
     check: "scripts/checks/lint-migrations.sh"
+    doc_ref: "#12-database-layer"
+
+  - id: DB-MIGRATION-003
+    lang: sql
+    severity: blocking
+    statement: "Every CREATE TABLE, ADD COLUMN, and CREATE INDEX migration must use IF NOT EXISTS guards for idempotency."
+    check: "scripts/checks/lint-migrations-idempotent.sh"
     doc_ref: "#12-database-layer"
 
   - id: DB-TENANT-001
@@ -138,6 +194,13 @@ rules:
     severity: blocking
     statement: "Every field in every config yaml file validates against platform/config/schema/*.schema.json."
     check: "scripts/checks/validate-config.sh"
+    doc_ref: "#6-config-management"
+
+  - id: CONFIG-ACCESS-001
+    lang: any
+    severity: blocking
+    statement: "No string-indexed or untyped config access (config['key'], os.Getenv, System.getenv) in feature code — use injected typed structs/models."
+    check: "scripts/checks/no-string-config-access.sh"
     doc_ref: "#6-config-management"
 
   - id: RESOURCE-TIMEOUT-001
