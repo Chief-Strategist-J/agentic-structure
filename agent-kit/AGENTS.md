@@ -25,23 +25,48 @@ bash scripts/run-rules-manifest.sh --changed
 
 ## 2. Absolute Boundaries & Non-Negotiables
 
-### A. Type Safety & Null Safety
-- **Kotlin**: Never use `!!` outside tests (`KT-NULL-001`). Never leak platform types `String!`. Use `Either<NonEmptyList<AppError>, Command>` for boundary validation. Never use `List<T>?` — use `List<T>` defaulting to `emptyList()`.
-- **Go**: Check every `(T, error)` before touching `T` (`GO-ERRCHECK-001`). Never discard errors with `_`. Every type assertion `x.(T)` must use `, ok` form (`GO-ASSERT-001`). Never `panic()` in `features/` or `domain/` (`GO-PANIC-001`).
-- **TypeScript**: `any` is strictly banned (`TS-ANY-001`). Never use `as Type` on external/unknown data (`TS-ASSERT-001`); use zod `.parse()` / `.safeParse()`. Enforce `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true` in `tsconfig.json` (`TS-STRICT-001`).
+### A. §0 The Naming Law (`NAMING-001`, `NAMING-002`)
+- **No example nouns**: Never copy template/example nouns (`Order`, `Pricing`, `User`, `Cart`, `Invoice`, `Todo`) into structural code. Port interfaces are `<Feature>Repository`, `<Feature>Publisher`.
+- **Rule file naming**: Rule YAML files must match `<feature>.<concern>.rules.yaml` (`<concern>` = validation | decision | workflow | eligibility).
 
-### B. Functional Transforms & No Loops
-- **No loops in feature slices**: Never write `for` or `while` loops inside `features/`, `domain/`, or UI components (`LOOP-001`).
+### B. §1 & §2 Vertical Slice Topology (`STRUCTURE-001`)
+- **Go**: `cmd/{api,worker}/main.go`, `internal/features/<feature>/` (`<verb>_handler.go`, `<verb>_command.go`, `<verb>_result.go`, `logic.go`, `rules.go`, `validate.go`), `internal/domain/<entity>.go`, `internal/ports/<feature>_repository.go`, `internal/adapters/{postgres,kafka,redis}/`, `internal/engine/`, `internal/platform/`.
+- **Kotlin**: `platform/`, `domain/<Entity>.kt`, `features/<feature>/` (`<Verb><Feature>Route.kt`, `Command.kt`, `Handler.kt`, `Rules.kt`, `Validation.kt`), `ports/<Feature>Repository.kt`, `adapters/`, `app/Application.kt`.
+- **Next.js**: `app/(features)/<feature>/` (`page.tsx`, `actions.ts`, `schema.ts`, `hooks.ts`, `components/`), `lib/` (`data/`, `rules/`, `config/`, `errors/`, `tracing/`, `validation/`, `transforms/`), `components/ui/`.
+- **Banned Layered Layouts**: Flat `controllers/`, `services/`, `models/`, `repositories/`, `handlers/`, `pages/api/`, `utils/`, `helpers/` are **strictly rejected**.
+- **Slice Isolation (`UI-CROSS-IMPORT-001`)**: Never import across vertical slice boundaries directly (`(features)/feature-a` importing from `(features)/feature-b`). Shared code belongs in `platform/`, `components/ui/`, or `lib/`.
+
+### C. §3 Brutal Type & Null Safety (`KT-NULL-001`, `GO-ASSERT-001`, `GO-ERRCHECK-001`, `GO-PANIC-001`, `TS-ANY-001`, `TS-ASSERT-001`, `TS-STRICT-001`)
+- **Kotlin**: Ban `!!` outside tests. Wrap platform types `String!`. Use `Either<NonEmptyList<AppError>, Command>` for boundary validation. Never use `List<T>?` — use `List<T>` defaulting to `emptyList()`.
+- **Go**: Check every `(T, error)` before touching `T`. Never discard errors with `_`. Every type assertion `x.(T)` must use `, ok` form. Never `panic()` in `features/` or `domain/`.
+- **TypeScript**: `any` is strictly banned. Never use `as Type` on external/unknown data; use zod `.parse()` / `.safeParse()`. Enforce `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true` in `tsconfig.json`.
+
+### D. §5 Functional Transforms & No Loops (`LOOP-001`)
+- **No loops in feature slices**: Never write `for` or `while` loops inside `features/`, `domain/`, or UI components.
 - **Required combinators**: Use `map`, `filter`, `fold`, `reduce`, `groupBy`, `partition`, `pipe` per language. Loops belong ONLY inside `platform/fp` or low-level byte adapters.
 
-### C. Vertical Slice Topology & Isolation
-- **Structure Law**: Follow vertical slices: `internal/features/<feature>/` (Go), `features/<feature>/` (Kotlin), `app/(features)/<feature>/` (Next.js) (`STRUCTURE-001`). Flat `controllers/`, `services/`, `models/`, `repositories/`, `handlers/`, `pages/api/` are **strictly rejected**.
-- **Slice Isolation**: Never import across vertical slice boundaries directly (`(features)/feature-a` importing from `(features)/feature-b`) (`UI-CROSS-IMPORT-001`). Shared code belongs in `platform/`, `components/ui/`, or `lib/`.
-- **Naming Law**: Never copy template/example nouns (`Order`, `Pricing`, `User`, `Cart`, `Invoice`) into structural code (`NAMING-001`). Rule YAML files must match `<feature>.<concern>.rules.yaml` (`NAMING-002`).
+### E. §9 Everything Centralized Master List (`CENTRAL-001`)
+If it appears more than once anywhere in `features/`, it is a bug:
+- **Tracing init + span decorators**: `platform/tracing`, `platform/engine`, `platform/adapters/base`, `platform/http` (never in `features/`).
+- **Config loading/typing**: `platform/config` loader, one typed struct (no string-indexed reads `config["key"]`, `os.Getenv`, `System.getenv` in features — `CONFIG-ACCESS-001`).
+- **Error codes/taxonomy**: `platform/errors` (no hand-typed error strings).
+- **HTTP client**: `platform/http` factory (no `new HttpClient()`, `axios.create`, or `fetch()` in features).
+- **Rules engine runtime**: `platform/engine` (no feature-local if/else rule evaluation).
+- **DB pool / connection management**: `adapters/<store>/base` (no `sql.Open`, `pgxpool.New`, `new Pool` in features).
 
-### D. Frontend Zero-Logic Law
-- **Zero Business Logic in UI**: Components (`.tsx`) contain only markup, style bindings, and props (`UI-LOGIC-001`). No business conditionals, no data transformations, no direct `fetch()`/`axios` in components (`UI-FETCH-001`).
-- **Styling Discipline**: No inline style ternaries `style={{...}}` (`UI-INLINE-STYLE-001`). No raw hex/px values outside design token files (`UI-STYLE-001`). Use dedicated style resolvers `lib/styles/<feature>.styles.ts` or `cva()`.
+### F. §10 AI 3-Agent Loop & ADR Governance (`ADR-COVERAGE-001`, `AGENT-LOOP-001`)
+- **Agent 1 (Generator)**: Proposes code and **MUST cite which ADR(s) and architecture doc section(s) it followed** in the PR/commit.
+- **Agent 2 (Reviewer / Enforcer)**: Runs mechanical linters and LLM checks for vertical slice boundaries and rules-engine placement.
+- **Agent 3 (Cross-checker)**: Verifies external validity and internal consistency against `platform/adr/*.md`. Any conflict requires an explicit ADR supersession proposal approved by a human.
+- **ADR Requirement**: Structural changes (new top-level directory, port pattern, engine action) require a linked ADR under `platform/adr/`.
+
+### G. §11 Frontend Zero-Logic Law (`UI-LOGIC-001`, `UI-TRANSFORM-001`, `UI-MAGIC-VALUES-001`, `UI-FETCH-001`, `UI-STYLE-001`, `UI-INLINE-STYLE-001`, `UI-CROSS-IMPORT-001`, `UI-COMPONENT-SIZE-001`)
+- **Three Things Only in `.tsx`**: Markup, style bindings, and calls to hooks/props computed elsewhere.
+- **No Business Conditionals**: No multi-condition boolean guards in JSX (`UI-LOGIC-001`).
+- **No Data Transformation in Components**: `.map`/`.filter`/`.reduce` on raw API data inside a component is banned — raw to view-model transformation lives in `lib/transforms/<feature>.viewmodel.ts` (`UI-TRANSFORM-001`).
+- **No Inline Magic Values**: Thresholds (> 500), status strings ("ACTIVE"), enum literals sourced from `lib/config` or contract enums (`UI-MAGIC-VALUES-001`).
+- **No Direct Fetching**: Network calls go through `lib/data/<feature>.ts` (`UI-FETCH-001`).
+- **Styling Discipline**: No inline style ternaries `style={{...}}` (`UI-INLINE-STYLE-001`). No raw hex/px outside design tokens (`UI-STYLE-001`). Use dedicated style resolvers `lib/styles/<feature>.styles.ts` or `cva()`.
 - **Component Size**: Flag `.tsx` files exceeding 100 lines for container vs presentational splitting (`UI-COMPONENT-SIZE-001`).
 
 ---
@@ -90,11 +115,12 @@ Every request across all services carries this taxonomy. **Each identifier has O
 - **Idempotency Uniqueness at DB Level (`DB-IDEMPOTENCY-001`, `API-IDEMPOTENCY-001`)**:
   - Every mutating endpoint (POST/PUT/PATCH/DELETE) requires `Idempotency-Key`.
   - Database must enforce `UNIQUE(tenant_id, idempotency_key)` and store `payload_hash`.
-- **Migrations (`DB-MIGRATION-001`, `DB-MIGRATION-002`, `DB-MIGRATION-003`)**:
+- **Migrations & Compatibility (`DB-MIGRATION-001`, `DB-MIGRATION-002`, `DB-MIGRATION-003`, `DB-COMPAT-001`)**:
   - Expand → Migrate → Contract across 3 separate deployments.
   - Never add `NOT NULL` without a `DEFAULT` on the same statement.
   - Destructive migrations (`DROP`, `RENAME`, `ALTER TYPE`) require `-- ADR:` comment.
   - All migrations must be idempotent using `IF NOT EXISTS` guards.
+  - `db.compat.minSupportedSchemaVersion` in `platform/config/base.yaml` defines the compatibility window.
 - **Replicas & Read Consistency (`REPLICA-CONSISTENCY-001`)**:
   - Writes go to primary. Reads default to replica unless `ReadConsistency.STRONG` is explicitly passed.
   - Never use arbitrary `sleep()` or `delay()` before reading written data.
@@ -123,7 +149,7 @@ Every request across all services carries this taxonomy. **Each identifier has O
 ## 6. Verification Command Cheat Sheet
 
 ```bash
-# Run all checks across the entire repo
+# Run all 40 checks across the entire repo
 bash scripts/run-rules-manifest.sh
 
 # Run only checks matching changed files in git diff

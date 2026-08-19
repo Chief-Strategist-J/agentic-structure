@@ -98,6 +98,20 @@ rules:
     check: "scripts/checks/no-business-logic-in-jsx.sh"
     doc_ref: "#11-frontend"
 
+  - id: UI-TRANSFORM-001
+    lang: typescript
+    severity: blocking
+    statement: "No raw data transformation (.map/.filter/.reduce on API responses) inside components — data shaping lives in lib/transforms/<feature>.viewmodel.ts."
+    check: "scripts/checks/no-data-transforms-in-components.sh"
+    doc_ref: "#11-frontend"
+
+  - id: UI-MAGIC-VALUES-001
+    lang: typescript
+    severity: blocking
+    statement: "No inline business thresholds or status string literals in components — must be sourced from lib/config or contract enums."
+    check: "scripts/checks/no-magic-values-in-components.sh"
+    doc_ref: "#11-frontend"
+
   - id: UI-FETCH-001
     lang: typescript
     severity: blocking
@@ -168,6 +182,13 @@ rules:
     check: "scripts/checks/lint-idempotency-table.sh"
     doc_ref: "#13-contracts-and-validation"
 
+  - id: DB-COMPAT-001
+    lang: any
+    severity: blocking
+    statement: "Database backward compatibility window must be defined in base.yaml and migrations must follow sequential versioning."
+    check: "scripts/checks/validate-db-compat-window.sh"
+    doc_ref: "#12-database-layer"
+
   - id: DB-STATEMENT-TIMEOUT-001
     lang: any
     severity: blocking
@@ -195,6 +216,13 @@ rules:
     statement: "State-mutating operations that emit events must use the transactional outbox pattern — direct broker publishing in DB repositories is banned."
     check: "scripts/checks/no-uncoordinated-event-publish.sh"
     doc_ref: "#13-contracts-and-validation"
+
+  - id: CENTRAL-001
+    lang: any
+    severity: blocking
+    statement: "Strictly enforce §9 Centralization Master List: no bespoke HTTP clients, connection pools, ad-hoc rules engines, or tracing in features/."
+    check: "scripts/checks/enforce-centralization-master-list.sh"
+    doc_ref: "#9-everything-centralized"
 
   - id: API-IDEMPOTENCY-001
     lang: any
@@ -257,4 +285,11 @@ rules:
     severity: blocking
     statement: "A structural change (new top-level folder, new port pattern, new engine action type) has a linked ADR in the PR/commit description."
     check: "scripts/checks/check-adr-coverage.sh"
+    doc_ref: "#10-ai-cant-remember"
+
+  - id: AGENT-LOOP-001
+    lang: any
+    severity: blocking
+    statement: "Every change proposal (PR / commit) must cite which ADR(s) and architecture doc section(s) it followed (Agent 1 Generator protocol)."
+    check: "scripts/checks/validate-3-agent-loop-citations.sh"
     doc_ref: "#10-ai-cant-remember"
