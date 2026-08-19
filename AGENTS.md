@@ -1,50 +1,131 @@
-# AGENTS.md — read this before writing any code
+# AGENTS.md — Mandatory Architecture & Rules Specification
 
-This file is read natively by Claude Code, Gemini CLI, Cursor, Codex, Copilot, Windsurf, and most other coding agents. If your tool doesn't read it natively, `CLAUDE.md` / `GEMINI.md` / `.cursor/rules/` in this repo each `@AGENTS.md`-import this file — so wherever you're reading this from, it's the same rules.
+> **UNIVERSAL AGENT INSTRUCTION**: This file is read natively by Claude Code, Gemini CLI, Cursor, Windsurf, Copilot, Codex, and all autonomous coding agents. All rules in this document and `agent-kit/platform/rules-manifest.yaml` are **mechanically enforced, non-negotiable compile-time gates**.
 
-## Before writing ANY code, in this exact order
+---
 
-1. Read `agent-kit/platform/rules-manifest.yaml` in full. Every entry there is a real, enforced rule — not a suggestion, not a style preference.
-2. Read every file under `agent-kit/platform/adr/`. These are prior architecture decisions. Do not silently contradict one.
-3. State out loud (in your response, before editing anything) which rule IDs from the manifest apply to this task.
-4. Read `agent-kit/docs/architecture.md` for the full reasoning behind any rule ID you're unsure about — the manifest gives you the check, the doc gives you the "why."
+## 1. Mandatory Execution Protocol (Every Agent Turn)
 
-## Absolute boundaries — violating any of these is not a judgment call
+### Before writing or modifying ANY code:
+1. **Read `agent-kit/platform/rules-manifest.yaml` in full.**
+2. **Read every ADR under `agent-kit/platform/adr/`.** Do not silently contradict a prior decision.
+3. **State out loud in your initial response** which exact Rule IDs from the manifest apply to your current task.
+4. **Read `agent-kit/docs/architecture.md` and `rule-need-enforament/reference-rules.md`** for deep rationale.
 
-- Never use Kotlin `!!`, TypeScript `any`, or an unchecked Go type assertion (`x.(T)` without the `, ok` form).
-- Never use `panic()` in Go `features/` or `domain/` — handle errors as values.
-- Never write a business conditional, a data transform, or a `fetch`/`axios` call inside a UI component file. UI components render already-decided props — nothing else.
-- Never write inline conditional logic inside `style={{...}}` — use style resolvers or variant systems.
-- Never import across vertical slice boundaries directly (`(features)/<a-feature>` importing from `(features)/<b-feature>`) — shared items belong in `platform/`, `components/ui/`, or `lib/`.
-- Never write a `for`/`while` loop inside `features/`, `domain/`, or component code. Use the transform methods catalogued in `agent-kit/docs/architecture.md` (`map`/`filter`/`fold`/`reduce`/`pipe` per language). A loop belongs only inside `platform/fp` itself or a low-level adapter.
-- Never violate vertical slice folder structure (no flat `controllers/`, `services/`, `models/` layered dirs).
-- Never write a destructive database migration (drop, rename, narrow a type) without a linked ADR justifying it, and never add a `NOT NULL` column without a default in the same migration.
-- Never write non-idempotent migrations — every `CREATE TABLE`, `ADD COLUMN`, and `CREATE INDEX` must have `IF NOT EXISTS` guards.
-- Never invent or copy a concrete example noun (Order, Pricing, User, etc.) into structural code, folder names, or interfaces unless that is genuinely this project's real domain — placeholders (`<Feature>`, `<Entity>`) stay placeholders until a human names the real thing.
-- Never name rule YAML files arbitrarily — follow `<feature>.<concern>.rules.yaml`.
-- Never use raw or string-indexed config/env reads (`config["key"]`, `os.Getenv`, `System.getenv`) in feature code — inject typed structs/models.
-- Never ship a mutating endpoint (POST/PUT/PATCH/DELETE) without requiring an `Idempotency-Key`, and never implement dedup/uniqueness only in application code — it must be enforced by a database constraint.
-- Never query or write data without an explicit tenant-scoping parameter. There is no such thing as an unscoped query in this system.
-- Never claim a rule is satisfied without actually running its check command and showing the real output. Do not say "this follows the rules" without evidence.
-
-## After writing code, before saying you're done
-
+### After writing code, before claiming completion:
 Run:
-```
+```bash
 bash agent-kit/scripts/run-rules-manifest.sh --changed
 ```
-- Any `blocking` finding → STOP. Do not present the change as complete. State the exact rule ID and the failing output, and either fix it or explain why it's genuinely blocked and needs a human decision.
-- Any `required-with-justification` finding → surface it explicitly with your proposed justification. Do not silently proceed past it.
-- If a check script can't run in your current environment (missing tool, no network), say so explicitly and mark that check as unverified — never assume it would have passed.
+- **`blocking` finding** → **STOP IMMEDIATELY**. Fix the violation before proceeding. Do NOT declare the task complete.
+- **`required-with-justification` finding** → Surface explicitly to the user with formal justification.
+- **Never claim a rule is satisfied without running the script and presenting the actual output.**
 
-## If a rule conflicts with what the user is asking for
+---
 
-Stop and say so plainly. Propose either a compliant alternative or an explicit ADR-supersession (see `agent-kit/platform/adr/TEMPLATE.md`) for a human to approve. Do not quietly reinterpret a `blocking` rule to make the conflict disappear.
+## 2. Absolute Boundaries & Non-Negotiables
 
-## Reference
+### A. Type Safety & Null Safety
+- **Kotlin**: Never use `!!` outside tests (`KT-NULL-001`). Never leak platform types `String!`. Use `Either<NonEmptyList<AppError>, Command>` for boundary validation. Never use `List<T>?` — use `List<T>` defaulting to `emptyList()`.
+- **Go**: Check every `(T, error)` before touching `T` (`GO-ERRCHECK-001`). Never discard errors with `_`. Every type assertion `x.(T)` must use `, ok` form (`GO-ASSERT-001`). Never `panic()` in `features/` or `domain/` (`GO-PANIC-001`).
+- **TypeScript**: `any` is strictly banned (`TS-ANY-001`). Never use `as Type` on external/unknown data (`TS-ASSERT-001`); use zod `.parse()` / `.safeParse()`. Enforce `strict: true`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: true` in `tsconfig.json` (`TS-STRICT-001`).
 
-- Full architecture + reasoning: `agent-kit/docs/architecture.md`
-- Machine-readable rules: `agent-kit/platform/rules-manifest.yaml`
-- Prior decisions: `agent-kit/platform/adr/`
-- Run all checks: `bash agent-kit/scripts/run-rules-manifest.sh`
-- Run only checks touching your changed files: `bash agent-kit/scripts/run-rules-manifest.sh --changed`
+### B. Functional Transforms & No Loops
+- **No loops in feature slices**: Never write `for` or `while` loops inside `features/`, `domain/`, or UI components (`LOOP-001`).
+- **Required combinators**: Use `map`, `filter`, `fold`, `reduce`, `groupBy`, `partition`, `pipe` per language. Loops belong ONLY inside `platform/fp` or low-level byte adapters.
+
+### C. Vertical Slice Topology & Isolation
+- **Structure Law**: Follow vertical slices: `internal/features/<feature>/` (Go), `features/<feature>/` (Kotlin), `app/(features)/<feature>/` (Next.js) (`STRUCTURE-001`). Flat `controllers/`, `services/`, `models/`, `repositories/`, `handlers/`, `pages/api/` are **strictly rejected**.
+- **Slice Isolation**: Never import across vertical slice boundaries directly (`(features)/feature-a` importing from `(features)/feature-b`) (`UI-CROSS-IMPORT-001`). Shared code belongs in `platform/`, `components/ui/`, or `lib/`.
+- **Naming Law**: Never copy template/example nouns (`Order`, `Pricing`, `User`, `Cart`, `Invoice`) into structural code (`NAMING-001`). Rule YAML files must match `<feature>.<concern>.rules.yaml` (`NAMING-002`).
+
+### D. Frontend Zero-Logic Law
+- **Zero Business Logic in UI**: Components (`.tsx`) contain only markup, style bindings, and props (`UI-LOGIC-001`). No business conditionals, no data transformations, no direct `fetch()`/`axios` in components (`UI-FETCH-001`).
+- **Styling Discipline**: No inline style ternaries `style={{...}}` (`UI-INLINE-STYLE-001`). No raw hex/px values outside design token files (`UI-STYLE-001`). Use dedicated style resolvers `lib/styles/<feature>.styles.ts` or `cva()`.
+- **Component Size**: Flag `.tsx` files exceeding 100 lines for container vs presentational splitting (`UI-COMPONENT-SIZE-001`).
+
+---
+
+## 3. §14 Full Identifier Taxonomy (Strictly Enforced: `ID-TAXONOMY-001`)
+
+Every request across all services carries this taxonomy. **Each identifier has ONE distinct meaning and MUST NOT be aliased (e.g., Request-ID != Idempotency-Key != Trace-ID).**
+
+| Identifier | Generated by | Enforced Meaning | Propagation | Failure If Missing / Aliased |
+|---|---|---|---|---|
+| **Request-ID** | Edge / Gateway / Caller | Identifies this exact HTTP request/response pair. New value on every retry. | Per HTTP call | Cannot isolate individual call logs. |
+| **Trace-ID** | First service in chain | Identifies entire distributed execution across all services for one user action. | Ambient W3C `traceparent` unchanged | End-to-end distributed tracing breaks. |
+| **Span-ID** | Each service per unit of work | Identifies one specific operation/span within the trace. | Child span per hop | Trace waterfall loses execution step visibility. |
+| **Correlation-ID** | Originating business workflow | Identifies a multi-request workflow spanning multiple Trace-IDs over time. | Persisted with workflow/saga state | Cannot correlate multi-step business transactions. |
+| **Operation-ID** | Client / API contract layer | Identifies WHAT business operation is being performed (e.g. `createWallet`). | Fixed per logical operation | Spans and metrics cannot group by business action. |
+| **Idempotency-Key** | Client | Enables safe retry/dedup. Same key across all retries of the SAME intended mutation. | Same value across retries | Duplicate writes and double charges. |
+| **Causation-ID** | Triggering event/command | Points to the immediate predecessor that caused this event/request to exist. | Set once at creation | Root-cause analysis in event-driven systems fails. |
+| **Parent-Request-ID**| Immediate upstream caller | Points to the specific parent HTTP request in cross-trace asynchronous calls. | Set per hop | Cross-trace call attribution is lost. |
+| **Actor-ID** | Auth / Identity layer | WHO (user or service account) is responsible for this action. | Flows unchanged into audit logs | Compliance failure; audit log cannot identify actor. |
+| **Client-ID** | Auth / Identity layer | WHICH application/integration is calling (distinct from Actor-ID). | Flows unchanged | Cannot apply per-client rate limiting or analytics. |
+| **Tenant-ID** | Auth / Identity layer | WHICH tenant owns this operation and its data. | Ambient context to DB RLS | Catastrophic cross-tenant data leak vulnerability. |
+| **Session-ID** | Frontend / Auth session | WHICH user login session/browser context this request belongs to. | Cookie/token-scoped | Cannot revoke individual sessions or replay UX. |
+| **Resource-ID** | Resource creator | WHICH specific entity is being read or mutated. | Stable for resource lifetime | Cannot address target entity. |
+| **Resource-Version**| Database | WHICH version of that specific resource state this is. | Incremented on mutation | Concurrency lost-update bugs. |
+| **ETag / If-Match** | Server (ETag), Client (If-Match)| HTTP optimistic concurrency control carrying Resource-Version. | Per-request header | Concurrent writers silently clobber data. |
+| **Deadline** | Client / Upstream service | WHEN operation must stop (absolute timestamp or remaining budget). | Context deadline / AbortSignal | Wasted server work on timed-out requests. |
+| **Priority** | Client / Rules Engine | Urgency scheduling relative to other work for load-shedding. | Queue/worker priority | Cannot shed load gracefully under traffic spikes. |
+| **Retry-Count** | Retrying layer | How many times this exact operation has already been attempted. | Incremented per retry | Runaway retry storms. |
+| **Source** | Originating system | WHERE technically originated (batch job vs user UI vs webhook). | Set at origin | Cannot distinguish batch anomalies from user traffic. |
+| **Environment** | Deployment / Infra | dev / staging / prod deployment context. | Embedded in spans/logs | Dev logs contaminate production telemetry. |
+| **Security Context** | Auth Boundary | Authentication, authorization scopes, roles, data classification. | Resolved once at API edge | Authorization bypass vulnerabilities. |
+
+### Strict Rules for Taxonomy:
+1. **Never alias identifiers**: `idempotencyKey = requestId` or `traceId = requestId` is a blocking violation.
+2. **Never regenerate Trace-ID downstream**: Inherit ambient `traceparent`; never create orphan root spans.
+3. **Attach all identifiers in `platform/http`**: The centralized HTTP client auto-injects all ambient headers.
+
+---
+
+## 4. §12 Database, Multi-Tenancy & Sharding Laws
+
+- **Multi-Tenancy & RLS (`DB-RLS-001`, `DB-TENANT-001`)**:
+  - Every table with `tenant_id` MUST enforce `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` and `CREATE POLICY` at the database engine.
+  - Application-layer `WHERE tenant_id = ?` ALONE is strictly forbidden.
+  - Every repository query MUST take an explicit tenant context parameter.
+- **Idempotency Uniqueness at DB Level (`DB-IDEMPOTENCY-001`, `API-IDEMPOTENCY-001`)**:
+  - Every mutating endpoint (POST/PUT/PATCH/DELETE) requires `Idempotency-Key`.
+  - Database must enforce `UNIQUE(tenant_id, idempotency_key)` and store `payload_hash`.
+- **Migrations (`DB-MIGRATION-001`, `DB-MIGRATION-002`, `DB-MIGRATION-003`)**:
+  - Expand → Migrate → Contract across 3 separate deployments.
+  - Never add `NOT NULL` without a `DEFAULT` on the same statement.
+  - Destructive migrations (`DROP`, `RENAME`, `ALTER TYPE`) require `-- ADR:` comment.
+  - All migrations must be idempotent using `IF NOT EXISTS` guards.
+- **Replicas & Read Consistency (`REPLICA-CONSISTENCY-001`)**:
+  - Writes go to primary. Reads default to replica unless `ReadConsistency.STRONG` is explicitly passed.
+  - Never use arbitrary `sleep()` or `delay()` before reading written data.
+- **Connection Pools & Timeouts (`DB-STATEMENT-TIMEOUT-001`, `RESOURCE-TIMEOUT-001`)**:
+  - Centralize connection pooling in `platform/adapters/<store>/base`.
+  - Every query and database pool MUST configure an explicit `statement_timeout`.
+
+---
+
+## 5. §13 Multi-Layer Independent Validation & Outbox Pattern
+
+- **4-Layer Independent Validation**:
+  1. Frontend: `schema.ts` (Zod) for UX feedback.
+  2. API Boundary: Server-side validation accumulating ALL errors (`EitherNel`, `ValidationError` slice, Zod issues).
+  3. Domain Layer: Business invariants and state transition legality.
+  4. Database Layer: `NOT NULL`, `CHECK`, `UNIQUE(tenant_id, idempotency_key)`, and RLS.
+  - **No layer may skip validation assuming another layer already checked.**
+- **Transactional Outbox Pattern (`OUTBOX-PATTERN-001`)**:
+  - State mutations that emit events MUST write the event to an outbox table in the same database transaction.
+  - Direct message broker publishing inside database transactions is strictly banned.
+- **Optimistic Concurrency (`API-CONCURRENCY-001`)**:
+  - Update operations on mutable resources MUST require `If-Match` / `ETag`.
+
+---
+
+## 6. Verification Command Cheat Sheet
+
+```bash
+# Run all checks across the entire repo
+bash agent-kit/scripts/run-rules-manifest.sh
+
+# Run only checks matching changed files in git diff
+bash agent-kit/scripts/run-rules-manifest.sh --changed
+```

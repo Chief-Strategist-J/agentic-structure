@@ -1,0 +1,14 @@
+---
+description: Universal Architecture Rules and Boundaries
+globs: *
+---
+# Cursor Rules — Mandatory Architecture Specification
+
+Read and follow `AGENTS.md` and `agent-kit/platform/rules-manifest.yaml` unconditionally.
+
+- Run `bash agent-kit/scripts/run-rules-manifest.sh --changed` before completing any code change.
+- Never violate vertical slice folder structure.
+- Never use `any` in TypeScript, `!!` in Kotlin, or naked type assertions / panics in Go.
+- Never use `for`/`while` loops inside features/domain/components — use functional combinators.
+- Never omit tenant context on queries or mutate without an `Idempotency-Key`.
+- Preserve §14 Identifier Taxonomy across all handlers and HTTP calls without aliasing.

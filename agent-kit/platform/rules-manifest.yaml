@@ -154,12 +154,47 @@ rules:
     check: "scripts/checks/lint-migrations-idempotent.sh"
     doc_ref: "#12-database-layer"
 
+  - id: DB-RLS-001
+    lang: sql
+    severity: blocking
+    statement: "Every table with a tenant_id column must enforce Row-Level Security (RLS) policies at the database engine — application WHERE filtering alone is banned."
+    check: "scripts/checks/lint-migrations-rls.sh"
+    doc_ref: "#12-database-layer"
+
+  - id: DB-IDEMPOTENCY-001
+    lang: sql
+    severity: blocking
+    statement: "Dedicated idempotency / processed_events tables must enforce composite UNIQUE(tenant_id, idempotency_key) constraint and payload_hash column."
+    check: "scripts/checks/lint-idempotency-table.sh"
+    doc_ref: "#13-contracts-and-validation"
+
+  - id: DB-STATEMENT-TIMEOUT-001
+    lang: any
+    severity: blocking
+    statement: "Database connection pools and queries must specify explicit statement/query timeouts to prevent unbounded resource locking."
+    check: "scripts/checks/check-db-statement-timeout.sh"
+    doc_ref: "#12-database-layer"
+
   - id: DB-TENANT-001
     lang: any
     severity: blocking
     statement: "Every repository/query function takes tenant scope as a mandatory parameter — no unscoped query helper may exist."
     check: "scripts/checks/no-unscoped-queries.sh"
     doc_ref: "#12-database-layer"
+
+  - id: REPLICA-CONSISTENCY-001
+    lang: any
+    severity: blocking
+    statement: "Repository read consistency must be explicitly declared (STRONG vs EVENTUAL); arbitrary sleep/delay before reading written data is strictly banned."
+    check: "scripts/checks/check-replica-consistency-param.sh"
+    doc_ref: "#12-database-layer"
+
+  - id: OUTBOX-PATTERN-001
+    lang: any
+    severity: blocking
+    statement: "State-mutating operations that emit events must use the transactional outbox pattern — direct broker publishing in DB repositories is banned."
+    check: "scripts/checks/no-uncoordinated-event-publish.sh"
+    doc_ref: "#13-contracts-and-validation"
 
   - id: API-IDEMPOTENCY-001
     lang: any
@@ -174,6 +209,13 @@ rules:
     statement: "Every update-by-ID contract operation supports If-Match/ETag optimistic concurrency."
     check: "scripts/checks/require-etag-openapi.sh"
     doc_ref: "#13-contracts-and-validation"
+
+  - id: ID-TAXONOMY-001
+    lang: any
+    severity: blocking
+    statement: "Strictly enforce §14 Identifier Taxonomy: no mixing identifier meanings (Request-ID != Idempotency-Key != Trace-ID), ambient propagation, and no downstream Trace-ID regeneration."
+    check: "scripts/checks/validate-identifier-taxonomy.sh"
+    doc_ref: "#14-the-full-identifier-taxonomy"
 
   - id: SECURITY-SECRET-001
     lang: any

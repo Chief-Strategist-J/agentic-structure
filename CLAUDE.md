@@ -4,19 +4,19 @@
 
 ## Claude Code Specific Enforcement Protocol
 
-You are operating under **Zero-Trust Mechanical Rule Enforcement**. You must strictly obey all rules defined in `@AGENTS.md` and `platform/rules-manifest.yaml`.
+You are operating under **Zero-Trust Mechanical Rule Enforcement**. You must strictly obey all rules defined in `@AGENTS.md` and `agent-kit/platform/rules-manifest.yaml`.
 
 ### 1. Mandatory Pre-Edit Protocol
 Before generating or modifying any code in this repository:
 1. State out loud:
    - The exact task you are executing.
-   - The exact Rule IDs from `platform/rules-manifest.yaml` that apply (e.g. `ID-TAXONOMY-001`, `DB-RLS-001`, `STRUCTURE-001`, `TS-ANY-001`, `LOOP-001`).
-   - The relevant ADR from `platform/adr/` (e.g. `ADR-0001`).
+   - The exact Rule IDs from `agent-kit/platform/rules-manifest.yaml` that apply (e.g. `ID-TAXONOMY-001`, `DB-RLS-001`, `STRUCTURE-001`, `TS-ANY-001`, `LOOP-001`).
+   - The relevant ADR from `agent-kit/platform/adr/` (e.g. `ADR-0001`).
 
 ### 2. Mandatory Post-Edit Gate
 Before presenting your work as done or answering the user:
 ```bash
-bash scripts/run-rules-manifest.sh --changed
+bash agent-kit/scripts/run-rules-manifest.sh --changed
 ```
 - If any `blocking` rule fails: **STOP**. Fix the code immediately. Do NOT present incomplete or failing work.
 - Output the raw script verification results in your response as evidence.
