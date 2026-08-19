@@ -1,0 +1,155 @@
+# platform/rules-manifest.yaml
+#
+# This is the single source of truth for enforced rules. Every entry has:
+#   id        — unique, cite this exactly when discussing a violation
+#   lang      — kotlin | go | typescript | sql | any
+#   severity  — blocking | required-with-justification | advisory
+#   statement — one sentence, no ambiguity
+#   check     — an executable command; MUST exit 0 = pass, non-zero = violation found
+#   doc_ref   — anchor into /docs/architecture.md for the full reasoning
+#
+# A rule with no `check` is not yet enforceable and must be treated as
+# required-with-justification at most, never blocking, until a check exists.
+
+version: 1
+
+rules:
+  - id: KT-NULL-001
+    lang: kotlin
+    severity: blocking
+    statement: "No `!!` operator outside test source sets."
+    check: "scripts/checks/no-force-unwrap-kotlin.sh"
+    doc_ref: "#3-brutal-type-safety"
+
+  - id: GO-ASSERT-001
+    lang: go
+    severity: blocking
+    statement: "No unchecked type assertion — every `x.(T)` must use the `, ok` form."
+    check: "scripts/checks/no-unchecked-type-assertion-go.sh"
+    doc_ref: "#3-brutal-type-safety"
+
+  - id: GO-ERRCHECK-001
+    lang: go
+    severity: blocking
+    statement: "Every returned error must be checked, never discarded with `_`."
+    check: "scripts/checks/go-errcheck.sh"
+    doc_ref: "#3-brutal-type-safety"
+
+  - id: TS-ANY-001
+    lang: typescript
+    severity: blocking
+    statement: "No `any` type outside an explicitly commented, justified escape hatch."
+    check: "scripts/checks/no-any-typescript.sh"
+    doc_ref: "#3-brutal-type-safety"
+
+  - id: TS-ASSERT-001
+    lang: typescript
+    severity: blocking
+    statement: "No `as T` type assertion on external/unknown data — use a zod `.parse()`/`.safeParse()` instead."
+    check: "scripts/checks/no-unsafe-cast-typescript.sh"
+    doc_ref: "#3-brutal-type-safety"
+
+  - id: LOOP-001
+    lang: any
+    severity: blocking
+    statement: "No `for`/`while` loop inside features/, domain/, logic files, or UI components — use map/filter/fold/reduce/pipe."
+    check: "scripts/checks/no-loops-in-features.sh"
+    doc_ref: "#5-method-list-cheat-sheet"
+
+  - id: NAMING-001
+    lang: any
+    severity: blocking
+    statement: "No literal example nouns (Order, Pricing, User, etc.) copied from architecture docs/templates into structural code."
+    check: "scripts/checks/validate-naming.sh"
+    doc_ref: "#0-the-naming-law"
+
+  - id: UI-LOGIC-001
+    lang: typescript
+    severity: blocking
+    statement: "No business conditional (more than one boolean condition) inside JSX."
+    check: "scripts/checks/no-business-logic-in-jsx.sh"
+    doc_ref: "#11-frontend"
+
+  - id: UI-FETCH-001
+    lang: typescript
+    severity: blocking
+    statement: "No fetch()/axios call inside a component or page file — only lib/data/* may call the network directly."
+    check: "scripts/checks/no-fetch-in-components.sh"
+    doc_ref: "#11-frontend"
+
+  - id: UI-STYLE-001
+    lang: typescript
+    severity: required-with-justification
+    statement: "No inline hex color / raw px value outside the design-token file."
+    check: "scripts/checks/no-inline-style-values.sh"
+    doc_ref: "#11-frontend"
+
+  - id: DB-MIGRATION-001
+    lang: sql
+    severity: blocking
+    statement: "No NOT NULL column added without a default in the same migration."
+    check: "scripts/checks/lint-migrations.sh"
+    doc_ref: "#12-database-layer"
+
+  - id: DB-MIGRATION-002
+    lang: sql
+    severity: blocking
+    statement: "No destructive migration (DROP/RENAME COLUMN, narrowing a type) without an `-- ADR:` reference comment in the same file."
+    check: "scripts/checks/lint-migrations.sh"
+    doc_ref: "#12-database-layer"
+
+  - id: DB-TENANT-001
+    lang: any
+    severity: blocking
+    statement: "Every repository/query function takes tenant scope as a mandatory parameter — no unscoped query helper may exist."
+    check: "scripts/checks/no-unscoped-queries.sh"
+    doc_ref: "#12-database-layer"
+
+  - id: API-IDEMPOTENCY-001
+    lang: any
+    severity: blocking
+    statement: "Every mutating (POST/PUT/PATCH/DELETE) contract operation requires an Idempotency-Key header."
+    check: "scripts/checks/require-idempotency-key-openapi.sh"
+    doc_ref: "#14-the-full-identifier-taxonomy"
+
+  - id: API-CONCURRENCY-001
+    lang: any
+    severity: required-with-justification
+    statement: "Every update-by-ID contract operation supports If-Match/ETag optimistic concurrency."
+    check: "scripts/checks/require-etag-openapi.sh"
+    doc_ref: "#13-contracts-and-validation"
+
+  - id: SECURITY-SECRET-001
+    lang: any
+    severity: blocking
+    statement: "No secret, key, or credential pattern committed anywhere in the diff, including fixtures and examples."
+    check: "scripts/checks/no-committed-secrets.sh"
+    doc_ref: "#16-more-non-negotiable-rules"
+
+  - id: DEP-PIN-001
+    lang: any
+    severity: blocking
+    statement: "No floating dependency version range in a committed manifest — lockfiles only."
+    check: "scripts/checks/no-floating-deps.sh"
+    doc_ref: "#16-more-non-negotiable-rules"
+
+  - id: CONFIG-SCHEMA-001
+    lang: any
+    severity: blocking
+    statement: "Every field in every config yaml file validates against platform/config/schema/*.schema.json."
+    check: "scripts/checks/validate-config.sh"
+    doc_ref: "#6-config-management"
+
+  - id: RESOURCE-TIMEOUT-001
+    lang: any
+    severity: required-with-justification
+    statement: "Every outbound HTTP/DB/broker call has an explicit timeout — no default-forever client construction."
+    check: null
+    doc_ref: "#16-more-non-negotiable-rules"
+
+  - id: ADR-COVERAGE-001
+    lang: any
+    severity: blocking
+    statement: "A structural change (new top-level folder, new port pattern, new engine action type) has a linked ADR in the PR/commit description."
+    check: "scripts/checks/check-adr-coverage.sh"
+    doc_ref: "#10-ai-cant-remember"
