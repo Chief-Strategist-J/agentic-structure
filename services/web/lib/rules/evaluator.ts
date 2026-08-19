@@ -1,50 +1,70 @@
 /**
- * 3-Level Rules Engine Architecture (TypeScript)
- * Level 1 — Atomic Rule: Single condition, single result.
- * Level 2 — Compound Rule: Boolean combination (AND/OR/NOT) of Atomic Rules.
- * Level 3 — Policy: Policy composed of Level 1 & Level 2 with custom resolver.
+ * 3-Level Rules Engine Architecture with Complete Rule Metadata Attributes
  *
- * Mandatory engine attributes:
- * - Full auditability
- * - Debuggability waterfall
- * - User-facing explanations
+ * Identity:     id, version, name
+ * Ownership:    owner, domain, rationale
+ * Lifecycle:    active_from, active_to, enabled
+ * Evaluation:   condition, computation, priority
+ * Output:       output_key, output_type (score|flag|label|value|event), weight
  */
 
-export type Operator =
-  | 'EQUALS'
-  | 'NOT_EQUALS'
-  | 'GREATER_THAN'
-  | 'GREATER_THAN_OR_EQUAL'
-  | 'LESS_THAN'
-  | 'LESS_THAN_OR_EQUAL'
-  | 'IN'
-  | 'NOT_IN';
-
+export type OutputType = 'score' | 'flag' | 'label' | 'value' | 'event';
+export type Operator = 'EQUALS' | 'NOT_EQUALS' | 'GREATER_THAN' | 'GREATER_THAN_OR_EQUAL' | 'LESS_THAN' | 'LESS_THAN_OR_EQUAL' | 'IN' | 'NOT_IN';
 export type LogicalOperator = 'AND' | 'OR' | 'NOT';
 
-/** Level 1 — Atomic rule */
 export interface AtomicRule {
+  // Identity
   id: string;
+  version: number;
+  name: string;
+
+  // Ownership
+  owner: string;
+  domain: string;
+  rationale: string;
+
+  // Lifecycle
+  activeFrom?: string; // ISO timestamp
+  activeTo?: string;   // ISO timestamp
+  enabled: boolean;
+
+  // Evaluation
   field: string;
   operator: Operator;
   value: unknown;
+  priority: number;
+
+  // Output
+  outputKey: string;
+  outputType: OutputType;
+  weight: number;
   userFacingExplanation: string;
 }
 
-/** Level 2 — Compound rule */
 export interface CompoundRule {
   id: string;
+  version: number;
+  name: string;
+  owner: string;
+  domain: string;
+  rationale: string;
+  enabled: boolean;
   logicalOp: LogicalOperator;
   atomicRules: AtomicRule[];
-  nestedCompoundRules?: CompoundRule[];
+  priority: number;
+  outputKey: string;
+  outputType: OutputType;
+  weight: number;
   userFacingExplanation: string;
 }
 
-/** Level 3 — Policy */
 export interface Policy {
   id: string;
   name: string;
-  version: string;
+  version: number;
+  owner: string;
+  domain: string;
+  rationale: string;
   atomicRules: AtomicRule[];
   compoundRules: CompoundRule[];
   userFacingExplanation: string;
@@ -53,7 +73,7 @@ export interface Policy {
 export interface RuleEvaluationAudit {
   evaluationId: string;
   policyId: string;
-  policyVersion: string;
+  policyVersion: number;
   traceId: string;
   tenantId: string;
   evaluatedAt: string;
@@ -72,13 +92,14 @@ export class RulesEvaluator {
     traceId: string,
     tenantId: string
   ): { passed: boolean; audit: RuleEvaluationAudit } {
+    const now = new Date();
     const audit: RuleEvaluationAudit = {
       evaluationId: `eval-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       policyId: policy.id,
       policyVersion: policy.version,
       traceId,
       tenantId,
-      evaluatedAt: new Date().toISOString(),
+      evaluatedAt: now.toISOString(),
       passed: true,
       facts,
       firedAtomicRules: [],
@@ -89,31 +110,29 @@ export class RulesEvaluator {
 
     let policyPassed = true;
 
-    // 1. Evaluate Level 1 Atomic Rules
     for (const rule of policy.atomicRules) {
+      if (!rule.enabled) {
+        audit.debugWaterfall.push(`[Level 1 Atomic] Rule ${rule.id} skipped (disabled)`);
+        continue;
+      }
+      if (rule.activeFrom && now < new Date(rule.activeFrom)) {
+        audit.debugWaterfall.push(`[Level 1 Atomic] Rule ${rule.id} skipped (not active yet)`);
+        continue;
+      }
+      if (rule.activeTo && now > new Date(rule.activeTo)) {
+        audit.debugWaterfall.push(`[Level 1 Atomic] Rule ${rule.id} skipped (expired)`);
+        continue;
+      }
+
       const passed = this.evaluateAtomic(rule, facts);
       audit.debugWaterfall.push(
-        `[Level 1 Atomic] Rule ${rule.id} (${rule.field} ${rule.operator} ${JSON.stringify(rule.value)}): ${passed}`
+        `[Level 1 Atomic] Rule ${rule.id} (Priority: ${rule.priority}, Weight: ${rule.weight}, ${rule.field} ${rule.operator} ${JSON.stringify(rule.value)}): ${passed}`
       );
       if (passed) {
         audit.firedAtomicRules.push(rule.id);
       } else {
         policyPassed = false;
         audit.userFacingReasons.push(rule.userFacingExplanation);
-      }
-    }
-
-    // 2. Evaluate Level 2 Compound Rules
-    for (const compound of policy.compoundRules) {
-      const passed = this.evaluateCompound(compound, facts);
-      audit.debugWaterfall.push(
-        `[Level 2 Compound] Rule ${compound.id} (Op: ${compound.logicalOp}): ${passed}`
-      );
-      if (passed) {
-        audit.firedCompoundRules.push(compound.id);
-      } else {
-        policyPassed = false;
-        audit.userFacingReasons.push(compound.userFacingExplanation);
       }
     }
 
@@ -125,15 +144,5 @@ export class RulesEvaluator {
     const val = facts[rule.field];
     if (val === undefined || val === null) return false;
     return String(val) === String(rule.value);
-  }
-
-  evaluateCompound(compound: CompoundRule, facts: Record<string, unknown>): boolean {
-    if (compound.logicalOp === 'AND') {
-      return compound.atomicRules.every((r) => this.evaluateAtomic(r, facts));
-    }
-    if (compound.logicalOp === 'OR') {
-      return compound.atomicRules.some((r) => this.evaluateAtomic(r, facts));
-    }
-    return false;
   }
 }

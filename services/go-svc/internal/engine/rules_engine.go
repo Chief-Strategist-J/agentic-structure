@@ -6,21 +6,29 @@ import (
 	"time"
 )
 
-// Operator defines comparison operators for Level 1 Atomic Rules
+type OutputType string
+
+const (
+	OutputTypeScore OutputType = "score"
+	OutputTypeFlag  OutputType = "flag"
+	OutputTypeLabel OutputType = "label"
+	OutputTypeValue OutputType = "value"
+	OutputTypeEvent OutputType = "event"
+)
+
 type Operator string
 
 const (
-	OpEquals               Operator = "EQUALS"
-	OpNotEquals            Operator = "NOT_EQUALS"
-	OpGreaterThan          Operator = "GREATER_THAN"
-	OpGreaterThanOrEqual   Operator = "GREATER_THAN_OR_EQUAL"
-	OpLessThan             Operator = "LESS_THAN"
-	OpLessThanOrEqual      Operator = "LESS_THAN_OR_EQUAL"
-	OpIn                   Operator = "IN"
-	OpNotIn                Operator = "NOT_IN"
+	OpEquals             Operator = "EQUALS"
+	OpNotEquals          Operator = "NOT_EQUALS"
+	OpGreaterThan        Operator = "GREATER_THAN"
+	OpGreaterThanOrEqual Operator = "GREATER_THAN_OR_EQUAL"
+	OpLessThan           Operator = "LESS_THAN"
+	OpLessThanOrEqual    Operator = "LESS_THAN_OR_EQUAL"
+	OpIn                 Operator = "IN"
+	OpNotIn              Operator = "NOT_IN"
 )
 
-// LogicalOperator defines boolean composition for Level 2 Compound Rules
 type LogicalOperator string
 
 const (
@@ -29,51 +37,82 @@ const (
 	LogicalNot LogicalOperator = "NOT"
 )
 
-// Level 1 — Atomic Rule: Cannot be decomposed further. Has one condition. Produces one result.
+// Level 1 — Atomic Rule with Complete Metadata & Lifecycle
 type AtomicRule struct {
-	ID                    string      `json:"id"`
-	Field                 string      `json:"field"`
-	Operator              Operator    `json:"operator"`
-	Value                 interface{} `json:"value"`
-	UserFacingExplanation string      `json:"user_facing_explanation"`
+	// Identity
+	ID      string `json:"id"`
+	Version int    `json:"version"`
+	Name    string `json:"name"`
+
+	// Ownership
+	Owner     string `json:"owner"`
+	Domain    string `json:"domain"`
+	Rationale string `json:"rationale"`
+
+	// Lifecycle
+	ActiveFrom *time.Time `json:"active_from,omitempty"`
+	ActiveTo   *time.Time `json:"active_to,omitempty"`
+	Enabled    bool       `json:"enabled"`
+
+	// Evaluation
+	Field    string   `json:"field"`
+	Operator Operator `json:"operator"`
+	Value    any      `json:"value"`
+	Priority int      `json:"priority"`
+
+	// Output
+	OutputKey             string     `json:"output_key"`
+	OutputType            OutputType `json:"output_type"`
+	Weight                float64    `json:"weight"`
+	UserFacingExplanation string     `json:"user_facing_explanation"`
 }
 
-// Level 2 — Compound Rule: Composed of atomic rules. Fires when a boolean combination fires.
+// Level 2 — Compound Rule
 type CompoundRule struct {
 	ID                    string          `json:"id"`
+	Version               int             `json:"version"`
+	Name                  string          `json:"name"`
+	Owner                 string          `json:"owner"`
+	Domain                string          `json:"domain"`
+	Rationale             string          `json:"rationale"`
+	Enabled               bool            `json:"enabled"`
 	LogicalOp             LogicalOperator `json:"logical_op"`
 	AtomicRules           []AtomicRule    `json:"atomic_rules"`
-	NestedCompoundRules   []CompoundRule  `json:"nested_compound_rules,omitempty"`
+	Priority              int             `json:"priority"`
+	OutputKey             string          `json:"output_key"`
+	OutputType            OutputType      `json:"output_type"`
+	Weight                float64         `json:"weight"`
 	UserFacingExplanation string          `json:"user_facing_explanation"`
 }
 
-// Level 3 — Policy: Composed of atomic & compound rules with custom resolver.
+// Level 3 — Policy
 type Policy struct {
 	ID                    string         `json:"id"`
 	Name                  string         `json:"name"`
-	Version               string         `json:"version"`
+	Version               int            `json:"version"`
+	Owner                 string         `json:"owner"`
+	Domain                string         `json:"domain"`
+	Rationale             string         `json:"rationale"`
 	AtomicRules           []AtomicRule   `json:"atomic_rules"`
 	CompoundRules         []CompoundRule `json:"compound_rules"`
 	UserFacingExplanation string         `json:"user_facing_explanation"`
 }
 
-// AuditTrail Entry — Guarantees complete auditability, debuggability, and user-facing explanations.
 type RuleEvaluationAudit struct {
-	EvaluationID          string            `json:"evaluation_id"`
-	PolicyID              string            `json:"policy_id"`
-	PolicyVersion         string            `json:"policy_version"`
-	TraceID               string            `json:"trace_id"`
-	TenantID              string            `json:"tenant_id"`
-	EvaluatedAt           time.Time         `json:"evaluated_at"`
-	Passed                bool              `json:"passed"`
-	Facts                 map[string]any    `json:"facts"`
-	FiredAtomicRules      []string          `json:"fired_atomic_rules"`
-	FiredCompoundRules    []string          `json:"fired_compound_rules"`
-	UserFacingReasons     []string          `json:"user_facing_reasons"`
-	DebugWaterfall        []string          `json:"debug_waterfall"`
+	EvaluationID       string         `json:"evaluation_id"`
+	PolicyID           string         `json:"policy_id"`
+	PolicyVersion      int            `json:"policy_version"`
+	TraceID            string         `json:"trace_id"`
+	TenantID           string         `json:"tenant_id"`
+	EvaluatedAt        time.Time      `json:"evaluated_at"`
+	Passed             bool           `json:"passed"`
+	Facts              map[string]any `json:"facts"`
+	FiredAtomicRules   []string       `json:"fired_atomic_rules"`
+	FiredCompoundRules []string       `json:"fired_compound_rules"`
+	UserFacingReasons  []string       `json:"user_facing_reasons"`
+	DebugWaterfall     []string       `json:"debug_waterfall"`
 }
 
-// Evaluator evaluates Level 1, Level 2, and Level 3 rules with full auditability
 type Evaluator struct{}
 
 func NewEvaluator() *Evaluator {
@@ -81,13 +120,14 @@ func NewEvaluator() *Evaluator {
 }
 
 func (e *Evaluator) EvaluatePolicy(ctx context.Context, policy Policy, facts map[string]any, traceID, tenantID string) (bool, RuleEvaluationAudit) {
+	now := time.Now()
 	audit := RuleEvaluationAudit{
-		EvaluationID:       fmt.Sprintf("eval-%d", time.Now().UnixNano()),
+		EvaluationID:       fmt.Sprintf("eval-%d", now.UnixNano()),
 		PolicyID:           policy.ID,
 		PolicyVersion:      policy.Version,
 		TraceID:            traceID,
 		TenantID:           tenantID,
-		EvaluatedAt:        time.Now(),
+		EvaluatedAt:        now,
 		Facts:              facts,
 		FiredAtomicRules:   make([]string, 0),
 		FiredCompoundRules: make([]string, 0),
@@ -97,27 +137,28 @@ func (e *Evaluator) EvaluatePolicy(ctx context.Context, policy Policy, facts map
 
 	policyPassed := true
 
-	// 1. Evaluate Level 1 Atomic Rules
+	// Evaluate Atomic Rules
 	for _, rule := range policy.AtomicRules {
+		if !rule.Enabled {
+			audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 1 Atomic] Rule %s skipped (disabled)", rule.ID))
+			continue
+		}
+		if rule.ActiveFrom != nil && now.Before(*rule.ActiveFrom) {
+			audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 1 Atomic] Rule %s skipped (not active yet)", rule.ID))
+			continue
+		}
+		if rule.ActiveTo != nil && now.After(*rule.ActiveTo) {
+			audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 1 Atomic] Rule %s skipped (expired)", rule.ID))
+			continue
+		}
+
 		passed := e.EvaluateAtomic(rule, facts)
-		audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 1 Atomic] Rule %s (%s %s %v): %v", rule.ID, rule.Field, rule.Operator, rule.Value, passed))
+		audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 1 Atomic] Rule %s (Priority: %d, Weight: %.2f, %s %s %v): %v", rule.ID, rule.Priority, rule.Weight, rule.Field, rule.Operator, rule.Value, passed))
 		if passed {
 			audit.FiredAtomicRules = append(audit.FiredAtomicRules, rule.ID)
 		} else {
 			policyPassed = false
 			audit.UserFacingReasons = append(audit.UserFacingReasons, rule.UserFacingExplanation)
-		}
-	}
-
-	// 2. Evaluate Level 2 Compound Rules
-	for _, compound := range policy.CompoundRules {
-		passed := e.EvaluateCompound(compound, facts)
-		audit.DebugWaterfall = append(audit.DebugWaterfall, fmt.Sprintf("[Level 2 Compound] Rule %s (Op: %s): %v", compound.ID, compound.LogicalOp, passed))
-		if passed {
-			audit.FiredCompoundRules = append(audit.FiredCompoundRules, compound.ID)
-		} else {
-			policyPassed = false
-			audit.UserFacingReasons = append(audit.UserFacingReasons, compound.UserFacingExplanation)
 		}
 	}
 
@@ -131,24 +172,4 @@ func (e *Evaluator) EvaluateAtomic(rule AtomicRule, facts map[string]any) bool {
 		return false
 	}
 	return fmt.Sprintf("%v", factVal) == fmt.Sprintf("%v", rule.Value)
-}
-
-func (e *Evaluator) EvaluateCompound(compound CompoundRule, facts map[string]any) bool {
-	if compound.LogicalOp == LogicalAnd {
-		for _, atomic := range compound.AtomicRules {
-			if !e.EvaluateAtomic(atomic, facts) {
-				return false
-			}
-		}
-		return true
-	}
-	if compound.LogicalOp == LogicalOr {
-		for _, atomic := range compound.AtomicRules {
-			if e.EvaluateAtomic(atomic, facts) {
-				return true
-			}
-		}
-		return false
-	}
-	return false
 }
