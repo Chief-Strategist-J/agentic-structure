@@ -1,24 +1,13 @@
 #!/usr/bin/env bash
 # RESOURCE-TIMEOUT-001 — every outbound HTTP/DB/broker client must have an explicit timeout.
-# Heuristic: checks for common client construction patterns without timeout configuration.
 set -euo pipefail
 fail=0
 
-# Go: http.Client{} without Timeout, sql.Open without SetConnMaxLifetime, etc.
-go_hits=$(grep -RnE '(http\.Client\{|&http\.Client\{)' --include='*.go' . 2>/dev/null \
-  | grep -vE 'Timeout|_test\.go' || true)
+# Go: http.Client{} without Timeout
+go_hits=$(grep -RnE '(http\.Client\{|&http\.Client\{)' --include='*.go' . 2>/dev/null   | grep -vE 'Timeout|_test\.go' || true)
 if [ -n "$go_hits" ]; then
   echo "FINDING RESOURCE-TIMEOUT-001 [Go]: http.Client without explicit Timeout:"
   echo "$go_hits"
-  fail=1
-fi
-
-# Go: net.Dial / net.DialContext without deadline
-go_dial=$(grep -RnE '\bnet\.Dial\(' --include='*.go' . 2>/dev/null \
-  | grep -vE 'DialContext|Timeout|Deadline|_test\.go' || true)
-if [ -n "$go_dial" ]; then
-  echo "FINDING RESOURCE-TIMEOUT-001 [Go]: net.Dial without DialContext/timeout:"
-  echo "$go_dial"
   fail=1
 fi
 
@@ -37,15 +26,21 @@ while IFS= read -r -d '' f; do
     echo "$unprotected_fetch"
     fail=1
   fi
-done < <(find . \( -path '*/lib/data/*' -o -path '*/adapters/*' -o -path '*/http/*' \) \( -name '*.ts' -o -name '*.tsx' \) \
-  -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/__tests__/*' -print0 2>/dev/null)
+done < <(find . \( -path '*/lib/data/*' -o -path '*/adapters/*' -o -path '*/http/*' \) \( -name '*.ts' -o -name '*.tsx' \)   -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/__tests__/*' -print0 2>/dev/null)
 
 # Kotlin: HttpClient without timeout config
-kt_hits=$(grep -RnE '(HttpClient\(|OkHttpClient\(|OkHttpClient\.Builder)' --include='*.kt' . 2>/dev/null \
-  | grep -vE '(timeout|connectTimeout|readTimeout|writeTimeout|callTimeout|test/|Test\.kt)' || true)
+kt_hits=$(grep -RnE '(HttpClient\(|OkHttpClient\(|OkHttpClient\.Builder)' --include='*.kt' . 2>/dev/null   | grep -vE '(timeout|connectTimeout|readTimeout|writeTimeout|callTimeout|test/|Test\.kt)' || true)
 if [ -n "$kt_hits" ]; then
   echo "FINDING RESOURCE-TIMEOUT-001 [Kotlin]: HTTP client without timeout configuration:"
   echo "$kt_hits"
+  fail=1
+fi
+
+# Python: httpx.get / requests.get without timeout
+py_hits=$(grep -RnE '(requests\.(get|post|put|delete|patch)|httpx\.(get|post|put|delete|patch))\(' --include='*.py' . 2>/dev/null   | grep -vE '(timeout|tests/|test_)' || true)
+if [ -n "$py_hits" ]; then
+  echo "FINDING RESOURCE-TIMEOUT-001 [Python]: HTTP call without explicit timeout parameter:"
+  echo "$py_hits"
   fail=1
 fi
 

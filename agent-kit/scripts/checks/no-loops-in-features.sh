@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # LOOP-001 — no for/while/do-while loops in features/, domain/, components. Exit 0 = pass.
+# Enforces functional combinators across Go, Kotlin, TypeScript, Python, and Java.
 set -euo pipefail
 TARGET_DIRS='(features/|domain/|components/|\(features\)/)'
 
-hits=$( (grep -RnE '(^|[[:space:]])(for[[:space:]]|for\(|for[[:space:]]+await|while[[:space:]]*\(|do[[:space:]]*\{)' \
+hits=$( (grep -RnE '(^|[[:space:]])(for[[:space:]]|for\(|for[[:space:]]+await|while[[:space:]]+|while\(|do[[:space:]]*\{)' \
   --include='*.go' --include='*.kt' --include='*.ts' --include='*.tsx' --include='*.py' --include='*.java' . 2>/dev/null || true) \
   | grep -E "$TARGET_DIRS" \
-  | grep -vE '(fp/|_test\.|_test_|\.test\.|Test\.kt:|Test\.java:|tests/)' || true)
+  | grep -vE '(fp/|_test\.|_test_|\.test\.|Test\.kt:|Test\.java:|tests/|test_)' || true)
 
 if [ -n "$hits" ]; then
   echo "VIOLATION LOOP-001: raw loop found in a feature/domain/UI file — use map/filter/fold/reduce/pipe:"
