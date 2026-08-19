@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
 # ID-TAXONOMY-001 — enforces §14 Identifier Taxonomy boundaries. Exit 0 = pass.
-# Rules:
-# 1. No mixing identifier meanings (e.g. using Request-ID as Idempotency-Key or Trace-ID).
-# 2. Trace-ID must propagate via context/headers, never re-generated downstream.
-# 3. Tenant-ID is mandatory on all data operations and requests.
-# 4. Idempotency-Key is mandatory on mutating operations.
 set -euo pipefail
 fail=0
 
 alias_hits=""
 while IFS= read -r -d '' f; do
   hit=$(perl -ne '
-    if (/(idempotency_?key\s*[:=]+\s*(req(uest)?_?id|x_request_id)|trace_?id\s*[:=]+\s*(req(uest)?_?id|x_request_id))/i) {
+    if (/(idempotency_?key\s*[:=]+\s*.*(req(uest)?_?id|x_request_id|x-request-id)|trace_?id\s*[:=]+\s*.*(req(uest)?_?id|x_request_id|x-request-id))/i) {
       print "$ARGV:$.: $_";
     }
   ' "$f" 2>/dev/null || true)

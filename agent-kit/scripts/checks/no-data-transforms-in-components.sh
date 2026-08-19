@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# UI-TRANSFORM-001 — no raw data transformation inside UI components (.tsx). Exit 0 = pass.
-# Reference §11: .map/.filter/.reduce on raw API data INSIDE a component is banned.
-# Raw -> view-model transformation lives in lib/transforms/<feature>.viewmodel.ts.
+# UI-TRANSFORM-001 — bans in-component data transformations in .tsx. Exit 0 = pass.
 set -euo pipefail
 fail=0
 
-# Detect data transformation chains (.map().filter() / reduce / sort) inside .tsx components
-# Exclude JSX child mapping (e.g. items.map((item) => <Item key={item.id} />) is rendering markup, but heavy data shaping is not)
-transform_hits=$(grep -RnE '\.(filter|reduce|sort|flatMap)\([^)]*\)\s*\.(map|filter|reduce)' \
-  --include='*.tsx' \
-  --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=__tests__ . 2>/dev/null || true)
+hits=$(perl -ne '
+  if (/\.(map|filter|reduce|flatMap|reduceRight|groupBy)\s*\(/) {
+    unless (/\/\/ justified:/ || /\.test\./ || /\.stories\./) {
+      print "$ARGV:$.: $_";
+    }
+  }
+' $(find . -name '*.tsx' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/__tests__/*' -not -name '*.test.*' -not -name '*.stories.*' 2>/dev/null) 2>/dev/null || true)
 
-if [ -n "$transform_hits" ]; then
-  echo "VIOLATION UI-TRANSFORM-001: complex data transformation pipeline found in UI component:"
-  echo "$transform_hits"
-  echo "  → See §11: Move data shaping to lib/transforms/<feature>.viewmodel.ts — components only render already-shaped viewmodels."
+if [ -n "$hits" ]; then
+  echo "VIOLATION UI-TRANSFORM-001: in-component data transform (.map/.filter/.reduce) found inside React component:"
+  echo "$hits"
+  echo "  → See §11: Raw to view-model transformation MUST live in lib/transforms/<feature>.viewmodel.ts"
   fail=1
 fi
 
