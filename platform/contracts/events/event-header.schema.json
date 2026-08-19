@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CanonicalEventHeader",
+  "type": "object",
+  "required": ["event_id", "trace_id", "tenant_id", "causation_id", "event_type", "schema_version", "timestamp"],
+  "properties": {
+    "event_id": { "type": "string" },
+    "trace_id": { "type": "string" },
+    "tenant_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "event_type": { "type": "string" },
+    "schema_version": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

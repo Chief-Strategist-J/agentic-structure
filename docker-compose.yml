@@ -1,0 +1,89 @@
+version: '3.8'
+
+networks:
+  platform-net:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: platform_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_password
+    ports:
+      - "5432:5432"
+    networks:
+      - platform-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
+      KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    networks:
+      - platform-net
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.90.0
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    networks:
+      - platform-net
+
+  go-svc:
+    build:
+      context: ./services/go-svc
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      KAFKA_BROKERS: kafka:29092
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - platform-net
+
+  kotlin-svc:
+    build:
+      context: ./services/kotlin-svc
+    ports:
+      - "8081:8081"
+    environment:
+      DB_HOST: postgres
+      KAFKA_BROKERS: kafka:29092
+    depends_on:
+      - postgres
+      - kafka
+    networks:
+      - platform-net
+
+  web:
+    build:
+      context: ./services/web
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_GO_SVC_URL: http://go-svc:8080
+      NEXT_PUBLIC_KOTLIN_SVC_URL: http://kotlin-svc:8081
+    depends_on:
+      - go-svc
+      - kotlin-svc
+    networks:
+      - platform-net
