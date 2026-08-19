@@ -4,16 +4,16 @@ This file is read natively by Claude Code, Gemini CLI, Cursor, Codex, Copilot, W
 
 ## Before writing ANY code, in this exact order
 
-1. Read `/platform/rules-manifest.yaml` in full. Every entry there is a real, enforced rule — not a suggestion, not a style preference.
-2. Read every file under `/platform/adr/`. These are prior architecture decisions. Do not silently contradict one.
+1. Read `agent-kit/platform/rules-manifest.yaml` in full. Every entry there is a real, enforced rule — not a suggestion, not a style preference.
+2. Read every file under `agent-kit/platform/adr/`. These are prior architecture decisions. Do not silently contradict one.
 3. State out loud (in your response, before editing anything) which rule IDs from the manifest apply to this task.
-4. Read `/docs/architecture.md` for the full reasoning behind any rule ID you're unsure about — the manifest gives you the check, the doc gives you the "why."
+4. Read `agent-kit/docs/architecture.md` for the full reasoning behind any rule ID you're unsure about — the manifest gives you the check, the doc gives you the "why."
 
 ## Absolute boundaries — violating any of these is not a judgment call
 
 - Never use Kotlin `!!`, TypeScript `any`, or an unchecked Go type assertion (`x.(T)` without the `, ok` form).
 - Never write a business conditional, a data transform, or a `fetch`/`axios` call inside a UI component file. UI components render already-decided props — nothing else.
-- Never write a `for`/`while` loop inside `features/`, `domain/`, or component code. Use the transform methods catalogued in `/docs/architecture.md` (`map`/`filter`/`fold`/`reduce`/`pipe` per language). A loop belongs only inside `platform/fp` itself or a low-level adapter.
+- Never write a `for`/`while` loop inside `features/`, `domain/`, or component code. Use the transform methods catalogued in `agent-kit/docs/architecture.md` (`map`/`filter`/`fold`/`reduce`/`pipe` per language). A loop belongs only inside `platform/fp` itself or a low-level adapter.
 - Never write a destructive database migration (drop, rename, narrow a type) without a linked ADR justifying it, and never add a `NOT NULL` column without a default in the same migration.
 - Never invent or copy a concrete example noun (Order, Pricing, User, etc.) into structural code, folder names, or interfaces unless that is genuinely this project's real domain — placeholders (`<Feature>`, `<Entity>`) stay placeholders until a human names the real thing.
 - Never ship a mutating endpoint (POST/PUT/PATCH/DELETE) without requiring an `Idempotency-Key`, and never implement dedup/uniqueness only in application code — it must be enforced by a database constraint.
@@ -24,7 +24,7 @@ This file is read natively by Claude Code, Gemini CLI, Cursor, Codex, Copilot, W
 
 Run:
 ```
-bash scripts/run-rules-manifest.sh --changed
+bash agent-kit/scripts/run-rules-manifest.sh --changed
 ```
 - Any `blocking` finding → STOP. Do not present the change as complete. State the exact rule ID and the failing output, and either fix it or explain why it's genuinely blocked and needs a human decision.
 - Any `required-with-justification` finding → surface it explicitly with your proposed justification. Do not silently proceed past it.
@@ -32,12 +32,12 @@ bash scripts/run-rules-manifest.sh --changed
 
 ## If a rule conflicts with what the user is asking for
 
-Stop and say so plainly. Propose either a compliant alternative or an explicit ADR-supersession (see `/platform/adr/TEMPLATE.md`) for a human to approve. Do not quietly reinterpret a `blocking` rule to make the conflict disappear.
+Stop and say so plainly. Propose either a compliant alternative or an explicit ADR-supersession (see `agent-kit/platform/adr/TEMPLATE.md`) for a human to approve. Do not quietly reinterpret a `blocking` rule to make the conflict disappear.
 
 ## Reference
 
-- Full architecture + reasoning: `/docs/architecture.md`
-- Machine-readable rules: `/platform/rules-manifest.yaml`
-- Prior decisions: `/platform/adr/`
-- Run all checks: `bash scripts/run-rules-manifest.sh`
-- Run only checks touching your changed files: `bash scripts/run-rules-manifest.sh --changed`
+- Full architecture + reasoning: `agent-kit/docs/architecture.md`
+- Machine-readable rules: `agent-kit/platform/rules-manifest.yaml`
+- Prior decisions: `agent-kit/platform/adr/`
+- Run all checks: `bash agent-kit/scripts/run-rules-manifest.sh`
+- Run only checks touching your changed files: `bash agent-kit/scripts/run-rules-manifest.sh --changed`

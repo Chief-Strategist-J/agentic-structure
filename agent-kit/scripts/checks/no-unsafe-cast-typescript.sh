@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
-# TS-ASSERT-001 — no `as T` on external data outside schema.ts/generated. Exit 0 = pass.
+# TS-ASSERT-001 — no `as T` type assertions on external/unknown data. Exit 0 = pass.
+# Allows: 'as const' (safe), files matching *.schema.ts or in generated/ dirs.
 set -euo pipefail
-hits=$(grep -RnE '\bas\s+[A-Z][A-Za-z0-9_]*\b' --include='*.ts' --include='*.tsx' \
-  --exclude-dir=node_modules --exclude-dir=generated --exclude='schema.ts' . 2>/dev/null | grep -v '// justified:' || true)
+hits=$(grep -RnE '\bas\s+[A-Za-z_][A-Za-z0-9_<>\[\]|&{}]*' --include='*.ts' --include='*.tsx' \
+  --exclude-dir=node_modules --exclude-dir=generated . 2>/dev/null \
+  | grep -vE '\bas\s+const\b' \
+  | grep -vE '\.schema\.ts:' \
+  | grep -vE 'schema\.ts:' \
+  | grep -vE '// justified:' \
+  | grep -vE '/generated/' || true)
 if [ -n "$hits" ]; then
   echo "VIOLATION TS-ASSERT-001: found 'as <Type>' cast — use zod .parse()/.safeParse() at the boundary instead:"
   echo "$hits"

@@ -144,7 +144,7 @@ rules:
     lang: any
     severity: required-with-justification
     statement: "Every outbound HTTP/DB/broker call has an explicit timeout — no default-forever client construction."
-    check: null
+    check: "scripts/checks/no-default-timeouts.sh"
     doc_ref: "#16-more-non-negotiable-rules"
 
   - id: ADR-COVERAGE-001
